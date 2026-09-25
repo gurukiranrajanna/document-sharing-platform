@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { connectDB } from "./config/db";
+import tasksRouter from "./routes/taskRoutes";
 
 dotenv.config();
 
@@ -11,11 +12,11 @@ const PORT = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json());
 
-app.get("/", (req, res) => {
+app.get("/", (_req, res) => {
   res.json({ message: "TaskFlow Backend is running!" });
 });
 
-app.get("/health", (_req, res) => {           // ← NEW
+app.get("/health", (_req, res) => {
   res.json({
     status: "ok",
     uptime: process.uptime(),
@@ -24,10 +25,33 @@ app.get("/health", (_req, res) => {           // ← NEW
   });
 });
 
-// 404 catch-all must come AFTER all routes
+// ---- API routes ----
+app.use("/api/tasks", tasksRouter);
+
+// ---- 404 catch-all ----
 app.use((_req, res) => {
   res.status(404).json({ message: "Not found" });
 });
+
+// ---- Error middleware (MUST be last) ----
+app.use(
+  (
+    err: any,
+    _req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction
+  ) => {
+    console.error("[error]", err);
+
+    if (err.name === "ValidationError") {
+      return res.status(400).json({ message: err.message });
+    }
+    if (err.name === "CastError") {
+      return res.status(400).json({ message: `Invalid ${err.path}: ${err.value}` });
+    }
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+);
 
 const startServer = async () => {
   await connectDB();
