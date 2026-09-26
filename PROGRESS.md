@@ -105,3 +105,46 @@ Container names: `taskflow-mongo-1`, `taskflow-redis-1`, `taskflow-kafka-1`
 - Fixed bug: `taskRoutes.ts` had stub handlers returning 501 for `GET /:id` and `POST /`; wired real `getTask` and `createTask`
 
 ### Verified end-to-end
+
+## Step 5 — Kafka producer on task create ✅
+
+### 5a — Kafka client (`backend/src/config/kafka.ts`)
+- Module-level `kafka` singleton via `new Kafka({ clientId, brokers, logLevel })`
+- `logLevel.ERROR` to keep startup logs quiet
+- Config fields added: `kafkaBroker`, `kafkaClientId`, `kafkaTopicTaskCreated`
+
+### 5b — Producer (`backend/src/kafka/producer.ts`)
+- `producer: Producer = kafka.producer()` — lazy, doesn't connect on construction
+- `connectProducer()` — called once at startup
+- `publishTaskCreated(event)` — sends to `task.created` topic with `key = task.id` (ensures per-task ordering), `value = JSON.stringify(event)`
+- `disconnectProducer()` — defined for graceful shutdown (not wired yet)
+- `TaskCreatedEvent` interface — { id, title, status, createdAt } all strings (Kafka payloads are bytes)
+
+### 5c — Wire-up (`backend/src/server.ts`)
+- `await connectProducer()` after Mongo + Redis, before `listen`
+- Startup log: `[kafka] producer connected`
+
+### 5d — Publish on create (`taskController.createTask`)
+- After `Task.create()` and `redisClient.del(CACHE_KEY)`, publish event
+- `await publishTaskCreated({...})` — awaited so failures surface in the response
+
+### Verified end-to-end
+
+## Step 6 — Kafka consumer ✅
+
+### File: `backend/src/kafka/consumer.ts`
+- `consumer = kafka.consumer({ groupId: "taskflow-task-processors" })`
+- `startConsumer()`:
+  - `consumer.connect()`
+  - `consumer.subscribe({ topic: "task.created", fromBeginning: false })`
+  - `consumer.run({ eachMessage: ... })` — parses event JSON, logs it, placeholder for future side effects
+- `stopConsumer()` defined (for graceful shutdown — not wired yet)
+
+### Config additions
+- `kafkaConsumerGroup: "taskflow-task-processors"` in `config.ts`
+
+### server.ts
+- `await startConsumer()` after `connectProducer()`, before `listen`
+- Startup log: `[kafka] consumer started`
+
+### Verified end-to-end
