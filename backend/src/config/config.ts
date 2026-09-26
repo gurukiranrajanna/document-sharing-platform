@@ -11,4 +11,7 @@ export const config = {
   redisUrl: process.env.REDIS_URL || "redis://localhost:6379",
   cacheTtlSeconds: 60,
   nodeEnv: process.env.NODE_ENV || "development",
+  kafkaBroker: process.env.KAFKA_BROKER || "localhost:9092",
+  kafkaClientId: process.env.KAFKA_CLIENT_ID || "taskflow-backend",
+  kafkaTopicTaskCreated: "task.created",   // ← add
 };

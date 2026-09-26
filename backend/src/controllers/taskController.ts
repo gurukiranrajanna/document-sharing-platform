@@ -1,6 +1,7 @@
 import { RequestHandler } from "express";
 import { ITask, Task } from "../models/Task";
 import { redisClient } from "../config/redis";
+import { publishTaskCreated, TaskCreatedEvent } from "../kafka/producer";
 import { config } from "../config/config";
 
 const CACHE_KEY = "tasks:list";
@@ -44,6 +45,14 @@ export const createTask: RequestHandler = async (req, res, next) => {
     const task = await Task.create({ title, description });
 
     await redisClient.del(CACHE_KEY);
+
+    const event: TaskCreatedEvent = {
+      id: task.id,
+      title: task.title,
+      status: task.status,
+      createdAt: task.createdAt.toISOString(),
+    };
+    await publishTaskCreated(event);
 
     res.status(201).json(task);
   } catch (err) {

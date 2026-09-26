@@ -3,16 +3,12 @@ import express from "express";
 import cors from "cors";
 import { connectDB } from "./config/db";
 import { connectRedis } from "./config/redis";
+import { connectProducer } from "./kafka/producer";
 import { config } from "./config/config";
 import tasksRouter from "./routes/taskRoutes";
-import dotenv from "dotenv";
-
-
-dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
-
+const PORT = config.port;
 
 app.use(cors());
 app.use(express.json());
@@ -61,6 +57,7 @@ app.use(
 const startServer = async () => {
   await connectDB();
   await connectRedis();
+  await connectProducer();
   app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
   });
