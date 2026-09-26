@@ -87,25 +87,21 @@ Container names: `taskflow-mongo-1`, `taskflow-redis-1`, `taskflow-kafka-1`
 
 ---
 
-## Step 4 — Redis caching on GET /api/tasks ✅ (partially verified)
+## Step 4 — Redis caching on GET /api/tasks ✅
 
 ### 4a — Config refactor ✅
-- `backend/src/config/config.ts` — centralized env vars:
-  `{ port, mongoUri, redisUrl, cacheTtlSeconds: 60, nodeEnv }`
-- `db.ts` and `server.ts` updated to import `config` instead of reading `process.env` inline
-- `.env` + `.env.example` updated with `REDIS_URL=redis://localhost:6379`
+- `backend/src/config/config.ts` — centralized env vars
+- `db.ts` and `server.ts` use `config` instead of reading `process.env` inline
 
 ### 4b — Redis client ✅
-- `backend/src/config/redis.ts`:
-  - `redisClient` module-level singleton via `createClient({ url: config.redisUrl })`
-  - `on("error", ...)` listener — CRITICAL: node-redis v4 crashes without it
-  - `on("connect", ...)` logs `[redis] connected`
-  - `connectRedis()` exported, called in `server.ts` after `connectDB()`, before `app.listen()`
-- Verified: startup prints `[redis] connected`, `redis-cli PING` → `PONG`
+- `backend/src/config/redis.ts` — `redisClient` singleton + `connectRedis()`
+- `on("error")` listener (node-redis v4 crashes without it)
+- `[redis] connected` logged on startup, `connectRedis()` called after `connectDB()`
 
 ### 4c — Cache-aside logic ✅
-- `taskController.ts`:
-  - `CACHE_KEY = "tasks:list"`
-  - `listTasks`: get cache → HIT returns `{ source: "cache", data }`; MISS queries Mongo with `.lean()`, sets with `EX: config.cacheTtlSeconds`, returns `{ source: "db", data }`
-  - `createTask` / `updateTask` / `deleteTask`: `await redisClient.del(CACHE_KEY)` after DB write succeeds, before response
-- Verified sequence via curl.exe:
+- `listTasks`: cache-first → HIT returns `{source:"cache", data}`, MISS reads Mongo with `.lean()`, sets with `EX: 60`, returns `{source:"db", data}`
+- `createTask` / `updateTask` / `deleteTask`: `redisClient.del(CACHE_KEY)` after DB write
+- Fixed bug: `updateTask` / `deleteTask` originally didn't invalidate; added
+- Fixed bug: `taskRoutes.ts` had stub handlers returning 501 for `GET /:id` and `POST /`; wired real `getTask` and `createTask`
+
+### Verified end-to-end

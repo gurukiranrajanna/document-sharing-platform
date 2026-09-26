@@ -1,9 +1,12 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import { connectDB } from "./config/db";
-import tasksRouter from "./routes/taskRoutes";
 import { connectRedis } from "./config/redis";
+import { config } from "./config/config";
+import tasksRouter from "./routes/taskRoutes";
+import dotenv from "dotenv";
+
 
 dotenv.config();
 
