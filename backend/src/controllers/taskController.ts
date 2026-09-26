@@ -1,10 +1,31 @@
 import { RequestHandler } from "express";
 import { ITask, Task } from "../models/Task";
+import { redisClient } from "../config/redis";
+import { config } from "../config/config";
 
-export const listTasks: RequestHandler = async (_req, res, next) => {
+const CACHE_KEY = "tasks:list";
+
+export const listTasks = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    const tasks = await Task.find().sort({ createdAt: -1 });
-    res.json(tasks);
+    // 1. Try cache first
+    const cached = await redisClient.get(CACHE_KEY);
+    if (cached) {
+      return res.json({ source: "cache", data: JSON.parse(cached) });
+    }
+
+    // 2. Cache miss → query Mongo
+    const tasks = await Task.find().sort({ createdAt: -1 }).lean();
+
+    // 3. Store in cache with TTL
+    await redisClient.set(CACHE_KEY, JSON.stringify(tasks), {
+      EX: config.cacheTtlSeconds,
+    });
+
+    res.json({ source: "db", data: tasks });
   } catch (err) {
     next(err);
   }
@@ -23,16 +44,20 @@ export const getTask: RequestHandler = async (req, res, next) => {
   }
 };
 
-export const createTask: RequestHandler = async (req, res, next) => {
+export const createTask = async (req, res, next) => {
   try {
-    const task = await Task.create(req.body as ITask);
+    const { title, description } = req.body;
+    const task = await Task.create({ title, description });
+
+    await redisClient.del(CACHE_KEY);   // ← invalidate
+
     res.status(201).json(task);
   } catch (err) {
     next(err);
   }
 };
 
-export const updateTask: RequestHandler = async (req, res, next) => {
+export const updateTask = async (req, res, next) => {
   try {
     const task = await Task.findByIdAndUpdate(req.params.id, req.body as ITask, {
       new: true,
@@ -48,7 +73,7 @@ export const updateTask: RequestHandler = async (req, res, next) => {
   }
 };
 
-export const deleteTask: RequestHandler = async (req, res, next) => {
+export const deleteTask = async (req, res, next) => {
   try {
     const task = await Task.findByIdAndDelete(req.params.id);
     if (!task) {
