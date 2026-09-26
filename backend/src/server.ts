@@ -6,6 +6,7 @@ import { connectRedis } from "./config/redis";
 import { connectProducer } from "./kafka/producer";
 import { config } from "./config/config";
 import tasksRouter from "./routes/taskRoutes";
+import { startConsumer } from "./kafka/consumer";
 
 const app = express();
 const PORT = config.port;
@@ -58,6 +59,7 @@ const startServer = async () => {
   await connectDB();
   await connectRedis();
   await connectProducer();
+  await startConsumer();     // ← NEW
   app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
   });

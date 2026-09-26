@@ -14,4 +14,5 @@ export const config = {
   kafkaBroker: process.env.KAFKA_BROKER || "localhost:9092",
   kafkaClientId: process.env.KAFKA_CLIENT_ID || "taskflow-backend",
   kafkaTopicTaskCreated: "task.created",   // ← add
+  kafkaConsumerGroup: "taskflow-task-processors",
 };
